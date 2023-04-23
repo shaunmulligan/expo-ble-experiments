@@ -1,4 +1,5 @@
 import { BleManager, Device, Service } from 'react-native-ble-plx';
+import {Buffer} from 'buffer';
 
 let bleManager: BleManager | null = null;
 
@@ -95,3 +96,92 @@ export function getServiceNames(serviceUUIDs: string[]): string[] {
   
     return serviceNames;
   }
+
+/**
+ * Monitors the heart rate measurement of a connected BLE device and calls an optional callback function
+ * with the received heart rate value.
+ *
+ * @async
+ * @function
+ * @param {Device} device - The connected BLE device to monitor the heart rate for.
+ * @param {function(number):void} [onHeartRateReceived] - An optional callback function that is called with the heart rate value received.
+ * @throws Will throw an error if the device is not connected or if the Heart Rate Service or Heart Rate Measurement Characteristic are not found.
+ */
+export async function monitorHeartRate(
+    device: Device,
+    onHeartRateReceived?: (heartRate: number) => void,
+    onError?: (error: Error) => void,
+    transactionId?: string
+  ) {
+    try {
+      const connectionState = await device.isConnected();
+      if (!connectionState) {
+        console.log('Device is not connected');
+        return;
+      }
+  
+      await device.discoverAllServicesAndCharacteristics();
+      const services = await device.services();
+  
+      // Find the Heart Rate Service
+      const heartRateService = services.find((service) =>
+        service.uuid.includes(SupportedBleServices.HeartRate),
+      );
+  
+      if (!heartRateService) {
+        throw new Error('Heart Rate Service not found.');
+      }
+  
+      const characteristics = await device.characteristicsForService(
+        heartRateService.uuid,
+      );
+  
+      // Find the Heart Rate Measurement Characteristic
+      const heartRateMeasurementCharacteristic = characteristics.find(
+        (characteristic) => characteristic.uuid.includes('2a37'),
+      );
+  
+      if (!heartRateMeasurementCharacteristic) {
+        throw new Error('Heart Rate Measurement Characteristic not found.');
+      }
+  
+      // Monitor the Heart Rate Measurement Characteristic
+      device.monitorCharacteristicForService(
+        heartRateService.uuid,
+        heartRateMeasurementCharacteristic.uuid,
+        (error, characteristic) => {
+          if (error) {
+            if (onError) {
+              onError(error); // Call the onError callback instead of throwing the error
+            } else {
+              console.error('Error monitoring Heart Rate Measurement:', error);
+            }
+            return;
+          }
+  
+          if (!characteristic || !characteristic.value) {
+            return;
+          }
+  
+          const data = Buffer.from(characteristic.value, 'base64'); // Convert base64 value to a Buffer
+  
+          const flags = data.readUInt8(0);
+          const is16Bit = (flags & (1 << 0)) !== 0; // Check if the heart rate value format is 16-bit
+  
+          let heartRate = 0;
+          if (is16Bit) {
+            heartRate = data.readUInt16LE(1); // Read heart rate as a 16-bit value
+          } else {
+            heartRate = data.readUInt8(1); // Read heart rate as an 8-bit value
+          }
+    
+          if (onHeartRateReceived) {
+            onHeartRateReceived(heartRate);
+          }
+        },
+        transactionId
+      );
+    } catch (error) {
+      throw error;
+    }
+  };
