@@ -108,8 +108,10 @@ export interface MonitorConfiguration {
 export async function connectAndMonitor(
   device: Device,
   monitorConfigurations: MonitorConfiguration[],
+  onDeviceConnected?: (device: Device) => void,
+  onDeviceDisconnected?: (device: Device) => void,
 ): Promise<BluetoothConnectionManager> {
-  const connectionManager = new BluetoothConnectionManager(device);
+  const connectionManager = new BluetoothConnectionManager(device, 5000, onDeviceConnected, onDeviceDisconnected);
 
   for (const config of monitorConfigurations) {
     connectionManager.addOnReconnectCallback(async () => {

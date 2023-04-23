@@ -8,11 +8,20 @@ class BluetoothConnectionManager {
   private connectionInterval: NodeJS.Timeout | null;
   private onReconnectCallbacks: CallbackFunction[];
 
-  constructor(device: Device, checkInterval: number = 5000) {
+  constructor(device: Device, 
+    checkInterval: number = 5000, 
+    private onDeviceConnected?: (device: Device) => void,
+    private onDeviceDisconnected?: (device: Device) => void,
+  ) {
     this.device = device;
     this.checkInterval = checkInterval;
     this.connectionInterval = null;
     this.onReconnectCallbacks = [];
+    this.device.onDisconnected((error, disconnectedDevice) => {
+        if (disconnectedDevice) {
+          this.handleDeviceDisconnected(disconnectedDevice);
+        }
+      });
   }
 
   public addOnReconnectCallback(callback: CallbackFunction): void {
@@ -35,16 +44,16 @@ class BluetoothConnectionManager {
 
     // Then, start the interval to monitor the connection
     this.connectionInterval = setInterval(async () => {
-      try {
-        const isConnected = await this.device.isConnected();
-        if (!isConnected) {
-          console.log('Device is not connected. Attempting to reconnect...');
-          await this.connectToDevice();
+        try {
+          const isConnected = await this.device.isConnected();
+          if (!isConnected) {
+            console.log('Device is not connected. Attempting to reconnect...');
+            await this.connectToDevice();
+          }
+        } catch (error) {
+          console.error('Error while checking device connection:', error);
         }
-      } catch (error) {
-        console.error('Error while checking device connection:', error);
-      }
-    }, this.checkInterval);
+      }, this.checkInterval);
   }
 
   public stopMonitoringConnection(): void {
@@ -58,11 +67,21 @@ class BluetoothConnectionManager {
     try {
       await this.device.connect();
       console.log('Device reconnected successfully');
+      if (this.onDeviceConnected) {
+        this.onDeviceConnected(this.device);
+      }
       await this.runOnReconnectCallbacks();
     } catch (error) {
       console.error('Error while reconnecting to the device:', error);
     }
   }
+
+    // handle device disconnection
+    private async handleDeviceDisconnected(disconnectedDevice: Device): Promise<void> {
+        if (this.onDeviceDisconnected) {
+          this.onDeviceDisconnected(disconnectedDevice);
+        }
+      }
 
   private async runOnReconnectCallbacks(): Promise<void> {
     for (const callback of this.onReconnectCallbacks) {

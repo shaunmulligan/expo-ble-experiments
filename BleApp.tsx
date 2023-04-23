@@ -4,12 +4,14 @@
 
 import React, { useEffect, useState } from 'react';
 import {
+  Button,
   SafeAreaView,
   Text
 } from 'react-native';
-import { scanForDevices, getBleManagerInstance, monitorHeartRate, connectAndMonitor, SupportedBleServices, MonitorConfiguration, parseHeartRateData } from './ble';
+import { scanForDevices, getBleManagerInstance, connectAndMonitor, SupportedBleServices, MonitorConfiguration, parseHeartRateData } from './ble';
 import { BleError, Device } from 'react-native-ble-plx';
 import DeviceList from './components/DevicesList';
+import BluetoothConnectionManager from './BluetoothConnectionManager';
 
 const manager = getBleManagerInstance();
 
@@ -17,6 +19,7 @@ const App = () => {
   const [devices, setDevices] = useState<Array<Device>>([]);
   const [pairedIds, setPairedIds] = useState<string[]>([]);
   const [connectedIds, setConnectedIds] = useState<string[]>([]);
+  const [connectionManagers, setConnectionManagers] = useState<{ [deviceId: string]: BluetoothConnectionManager }>({});
 
   useEffect(() => {
     const subscription = manager.onStateChange(async (state) => {
@@ -39,15 +42,50 @@ const App = () => {
     };
   }, [manager]);
   
-  const handleDisconnect = (error: BleError | null, device: Device) => {
+  const scan = async () => {
+    try {
+      const foundDevices = await scanForDevices(5);
+      console.log('found devices: ', foundDevices);
+      setDevices(foundDevices);
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  const handleConnects = (device: Device) => {
+    console.log(`${device.id} was connected`);
+    setConnectedIds((prevConnectedIds) => [...prevConnectedIds, device.id]);
+    // once we are connected, write into DB and update paired.
+    setPairedIds((prevConnectedIds) => [...prevConnectedIds, device.id]);
+  }
+
+  const handleDisconnect = (device: Device) => {
     // Write the heart rate value to a database or perform other actions
     console.log(`${device.id} was disconnected`);
-    manager.cancelTransaction('HRM-transatctions');
 
     // Remove the device.id from the connectedIds list
-      setConnectedIds((prevConnectedIds) =>
+    setConnectedIds((prevConnectedIds) =>
       prevConnectedIds.filter((id) => id !== device.id)
     );
+  };
+
+  const handleRemove = async (device: Device) => {
+    // Remove the device.id from the pairedIds list
+    setPairedIds((prevPairedIds) => prevPairedIds.filter((id) => id !== device.id));
+    await device.cancelConnection();
+  
+    // Call stopMonitoringConnection for the corresponding BluetoothConnectionManager
+    const connectionManager = connectionManagers[device.id];
+    if (connectionManager) {
+      connectionManager.stopMonitoringConnection();
+  
+      // Remove the BluetoothConnectionManager instance from the state
+      setConnectionManagers((prevState) => {
+        const newState = { ...prevState };
+        delete newState[device.id];
+        return newState;
+      });
+    }
   };
 
   const handleHeartRate = (heartRate: any) => {
@@ -70,8 +108,11 @@ const App = () => {
           onError: handleHrError,
         },
       ];
-      const connectionManager = await connectAndMonitor(device, monitorConfigurations);
-
+      const connectionManager = await connectAndMonitor(device, monitorConfigurations, handleConnects, handleDisconnect);
+  
+      // Store the BluetoothConnectionManager instance in the state
+      setConnectionManagers((prevState) => ({ ...prevState, [device.id]: connectionManager }));
+  
     } catch (error) {
       console.error(error);
       await device.cancelConnection();
@@ -82,7 +123,8 @@ const App = () => {
     <>
       <SafeAreaView>
         <Text>Discovered Devices:</Text>
-        <DeviceList devices={devices} pairedIds={pairedIds} connectedIds={connectedIds} onAddDevice={handleAddDevice}/>
+        <DeviceList devices={devices} pairedIds={pairedIds} connectedIds={connectedIds} onAddDevice={handleAddDevice} onRemoveDevice={handleRemove}/>
+        <Button title='Scan' onPress={scan} />
       </SafeAreaView>
     </>
   );
