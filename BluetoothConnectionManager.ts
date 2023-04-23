@@ -25,6 +25,15 @@ class BluetoothConnectionManager {
       return;
     }
 
+    // First, attempt to connect to the device
+    try {
+        console.log('Attempting initial connection...');
+        await this.connectToDevice();
+    } catch (error) {
+        console.error('Error during initial connection:', error);
+    }
+
+    // Then, start the interval to monitor the connection
     this.connectionInterval = setInterval(async () => {
       try {
         const isConnected = await this.device.isConnected();
