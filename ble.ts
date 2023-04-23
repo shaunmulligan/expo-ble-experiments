@@ -1,4 +1,4 @@
-import { BleError, BleManager, Device, LogLevel, Service } from 'react-native-ble-plx';
+import { BleManager, Device, Service } from 'react-native-ble-plx';
 
 let bleManager: BleManager | null = null;
 
@@ -27,7 +27,7 @@ const BLE_SERVICE_NAMES: BleServiceNames = {
     '0000180d-0000-1000-8000-00805f9b34fb': 'Heart Rate'
   }; 
 
-enum SupportedBleServices {
+export enum SupportedBleServices {
     Battery = '180f',
     HeartRate = '180d',
     CyclingPower = '1818',

@@ -1,14 +1,17 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import BleApp from './BleApp'
 
 export default function App() {
   return (
-    <View style={styles.container}>
+    <>
+      <StatusBar hidden={true}/>
+      <SafeAreaView>
       <Text>My App - with bluetooth!</Text>
       <StatusBar style="auto" />
       <BleApp />
-    </View>
+      </SafeAreaView>
+    </>
   );
 }
 
