@@ -1,4 +1,4 @@
-import { BleManager, Device, Service } from 'react-native-ble-plx';
+import { BleManager, Device, ScanMode, Service } from 'react-native-ble-plx';
 import { Buffer } from 'buffer';
 import BluetoothConnectionManager from './BluetoothConnectionManager';
 
@@ -47,7 +47,7 @@ export async function scanForDevices(scanTime: number): Promise<Array<Device>> {
   const bleManager = getBleManagerInstance(); // Get the global instance of BleManager
   const devices: Array<Device> = []; // Initialize an empty array to hold discovered devices
   try {
-    bleManager.startDeviceScan(SERVICE_UUIDS, null, (error, device) => {
+    bleManager.startDeviceScan([], {scanMode: ScanMode.Balanced}, (error, device) => {
       // Handle any errors that occur during scanning
       if (error) {
         console.log(`Error scanning for devices: ${error}`);
@@ -58,7 +58,10 @@ export async function scanForDevices(scanTime: number): Promise<Array<Device>> {
       const index = devices.findIndex((d) => d.id === device?.id);
       if (index === -1) {
         // If the device has not been discovered, add it to the list of devices
-        devices.push(device!);
+        if (device?.name !== null) {
+          // Ignore all unnamed devices
+          devices.push(device!);
+        }
       } else {
         // If the device has already been discovered, update its properties
         devices[index] = device!;
